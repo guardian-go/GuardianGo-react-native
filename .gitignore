@@ -31,7 +31,16 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
+.env.local
 .env*.local
+
+# Claude Code session data
+.claude/
+
+# VS Code personal settings (only share .vscode/extensions.json if desired)
+.vscode/settings.json
+.vscode/settings.local.json
 
 # typescript
 *.tsbuildinfo
