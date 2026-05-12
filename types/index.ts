@@ -74,3 +74,14 @@ export interface Notification {
   read: boolean;
   createdAt: Date;
 }
+
+export interface DismissalCycle {
+  id: string;
+  schoolId: string;
+  standard: string;
+  date: string;
+  active: boolean;
+  dismissalTime?: Date;
+  activatedAt?: Date;
+  activatedBy?: string;
+}

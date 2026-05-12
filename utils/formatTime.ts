@@ -34,3 +34,10 @@ export const formatDuration = (start: Date, end: Date): string => {
   if (minutes < 1) return '< 1 min';
   return `${minutes} min`;
 };
+
+export const getTodayKey = (date: Date = new Date()): string => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
