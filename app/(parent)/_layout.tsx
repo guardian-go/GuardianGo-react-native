@@ -43,6 +43,15 @@ export default function ParentLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color }: { color: string }) => (
+            <Ionicons name={'person-circle-outline' as IoniconName} size={24} color={color} />
+          ),
+        }}
+      />
     </Tabs>
   );
 }
