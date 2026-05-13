@@ -9,6 +9,8 @@ interface ArrivalButtonProps {
   onArrive: () => void;
   onConfirm: () => void;
   loading?: boolean;
+  dismissalActive?: boolean;
+  dismissalTime?: Date | null;
 }
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -57,8 +59,31 @@ const CONFIG: Record<PickupStatus, ButtonConfig> = {
   },
 };
 
-export function ArrivalButton({ status, onArrive, onConfirm, loading = false }: ArrivalButtonProps) {
-  const cfg = CONFIG[status];
+const formatClock = (d: Date) =>
+  d.toLocaleTimeString('en-CA', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+export function ArrivalButton({
+  status,
+  onArrive,
+  onConfirm,
+  loading = false,
+  dismissalActive = true,
+  dismissalTime,
+}: ArrivalButtonProps) {
+  const baseCfg = CONFIG[status];
+  const gateForDismissal = status === 'in_school' && !dismissalActive;
+  const cfg: ButtonConfig = gateForDismissal
+    ? {
+        label: 'Dismissal Not Started',
+        sublabel: dismissalTime
+          ? `Pickup opens around ${formatClock(dismissalTime)}`
+          : 'Your teacher will start dismissal shortly',
+        icon: 'lock-closed',
+        color: Colors.text.secondary,
+        disabled: true,
+        action: 'wait',
+      }
+    : baseCfg;
 
   const handlePress = () => {
     if (cfg.action === 'arrive') onArrive();

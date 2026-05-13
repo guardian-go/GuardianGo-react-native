@@ -20,6 +20,7 @@ export const Config = {
       schools: 'schools',
       pickupRecords: 'pickupRecords',
       consentRecords: 'consentRecords',
+      dismissalCycles: 'dismissalCycles',
     },
   },
 };
