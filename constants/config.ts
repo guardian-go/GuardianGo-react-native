@@ -21,6 +21,7 @@ export const Config = {
       pickupRecords: 'pickupRecords',
       consentRecords: 'consentRecords',
       dismissalCycles: 'dismissalCycles',
+      alternatePickups: 'alternatePickups',
     },
   },
 };

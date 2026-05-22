@@ -75,6 +75,18 @@ export interface Notification {
   createdAt: Date;
 }
 
+export interface AlternatePickup {
+  id: string;
+  parentId: string;
+  studentId: string;
+  schoolId: string;
+  fullName: string;
+  email: string;
+  photoUrl: string;
+  idPhotoUrl?: string;
+  createdAt: Date;
+}
+
 export interface DismissalCycle {
   id: string;
   schoolId: string;
