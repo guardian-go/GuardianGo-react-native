@@ -25,7 +25,8 @@ export interface User {
   email: string;
   role: UserRole;
   schoolId?: string;
-  childId?: string;
+  childId?: string;      // kept for backward compat (first child)
+  childIds?: string[];   // NEW: all children
   standard?: string;
 }
 

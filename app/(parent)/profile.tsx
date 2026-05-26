@@ -25,7 +25,8 @@ import {
   getAlternatePickups,
   deleteAlternatePickup,
 } from '@/services/alternatePickup.service';
-import { AlternatePickup } from '@/types';
+import { AlternatePickup, Student } from '@/types';
+import { subscribeToStudent } from '@/services/student.service';
 
 const cardShadow = {
   shadowColor: '#000',
@@ -36,19 +37,26 @@ const cardShadow = {
 };
 
 const emptyForm = { fullName: '', email: '', photoUri: '', idPhotoUri: '' };
+const emptyChildForm = { name: '', grade: '' };
 
 export default function ParentProfileScreen() {
   const { user, setUser, reset } = useAuthStore();
 
   const [schoolId, setSchoolId] = useState(user?.schoolId ?? '');
-  const [childName, setChildName] = useState('');
-  const [grade, setGrade] = useState(user?.standard ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const hasLinkedChild = !!user?.childId;
-  const hasSavedProfile = !!user?.schoolId && !!user?.standard && hasLinkedChild;
-  const [isEditing, setIsEditing] = useState(!hasSavedProfile);
+  // ── Children ───────────────────────────────────────────────────────────────
+  const [linkedChildren, setLinkedChildren] = useState<Student[]>([]);
+  const [loadingChildren, setLoadingChildren] = useState(false);
+  const [showAddChild, setShowAddChild] = useState(false);
+  const [childForm, setChildForm] = useState(emptyChildForm);
+  const [savingChild, setSavingChild] = useState(false);
+  const [childError, setChildError] = useState<string | null>(null);
+
+  // Keep track of whether the school code section is in edit mode
+  const hasSchool = !!user?.schoolId;
+  const [editingSchool, setEditingSchool] = useState(!hasSchool);
 
   // alternate pickup state
   const [alternates, setAlternates] = useState<AlternatePickup[]>([]);
@@ -58,6 +66,38 @@ export default function ParentProfileScreen() {
   const [savingAlternate, setSavingAlternate] = useState(false);
   const [alternateError, setAlternateError] = useState<string | null>(null);
 
+  // Load all linked children on mount
+  useEffect(() => {
+    if (!user) return;
+
+    const allIds: string[] = [];
+    if (user.childIds && user.childIds.length > 0) {
+      allIds.push(...user.childIds);
+    } else if (user.childId) {
+      allIds.push(user.childId);
+    }
+    if (allIds.length === 0) return;
+
+    setLoadingChildren(true);
+    const results = new Map<string, Student>();
+    const unsubs: (() => void)[] = [];
+
+    allIds.forEach((id) => {
+      const unsub = subscribeToStudent(id, (s) => {
+        if (s) results.set(id, s); else results.delete(id);
+        setLinkedChildren(allIds.flatMap((cid) => {
+          const c = results.get(cid);
+          return c ? [c] : [];
+        }));
+        setLoadingChildren(false);
+      });
+      unsubs.push(unsub);
+    });
+
+    return () => unsubs.forEach((u) => u());
+  }, [user?.id]);
+
+  // Load alternates
   useEffect(() => {
     if (!user) return;
     setLoadingAlternates(true);
@@ -78,58 +118,73 @@ export default function ParentProfileScreen() {
     }
   };
 
-  const handleEdit = () => {
-    setError(null);
-    setIsEditing(true);
-  };
-
-  const handleSave = async () => {
+  // Save school code
+  const handleSaveSchool = async () => {
     if (!user) return;
-    if (!schoolId.trim() || !grade.trim()) {
-      setError('Please enter your school code and grade.');
+    if (!schoolId.trim()) {
+      setError('Please enter your school code.');
       return;
     }
-    if (!hasLinkedChild && !childName.trim()) {
-      setError("Please enter your child's name.");
-      return;
-    }
-
-    const wasUpdate = hasSavedProfile;
     setError(null);
     setSaving(true);
     try {
-      let childId = user.childId;
-      if (!childId) {
-        childId = await createStudent({
-          name: childName.trim(),
-          standard: grade.trim(),
-          parentId: user.id,
-          schoolId: schoolId.trim(),
-        });
-      }
-      await updateUserProfile(user.id, {
-        schoolId: schoolId.trim(),
-        standard: grade.trim(),
-        childId,
-      });
-      setUser({
-        ...user,
-        schoolId: schoolId.trim(),
-        standard: grade.trim(),
-        childId,
-      });
-      Alert.alert(
-        wasUpdate ? 'Profile updated' : 'Profile saved',
-        wasUpdate
-          ? 'Your information has been updated.'
-          : 'Your information has been saved.',
-      );
-      setChildName('');
-      setIsEditing(false);
+      await updateUserProfile(user.id, { schoolId: schoolId.trim() });
+      setUser({ ...user, schoolId: schoolId.trim() });
+      setEditingSchool(false);
+      Alert.alert('Saved', 'School code updated.');
     } catch (e: any) {
-      setError(e?.message ?? 'Could not save profile. Please try again.');
+      setError(e?.message ?? 'Could not save. Please try again.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Add a new child
+  const handleAddChild = async () => {
+    if (!user) return;
+    if (!schoolId.trim() && !user.schoolId) {
+      setChildError('Please save your school code first.');
+      return;
+    }
+    if (!childForm.name.trim() || !childForm.grade.trim()) {
+      setChildError("Please enter the child's name and grade.");
+      return;
+    }
+    setChildError(null);
+    setSavingChild(true);
+    try {
+      const resolvedSchool = (user.schoolId ?? schoolId).trim();
+      const newChildId = await createStudent({
+        name: childForm.name.trim(),
+        standard: childForm.grade.trim(),
+        parentId: user.id,
+        schoolId: resolvedSchool,
+      });
+
+      // Merge into childIds array, keep childId for legacy compat
+      const existingIds = user.childIds ?? (user.childId ? [user.childId] : []);
+      const updatedIds = [...existingIds, newChildId];
+
+      await updateUserProfile(user.id, {
+        // @ts-ignore – childIds not in base User type yet
+        childIds: updatedIds,
+        childId: updatedIds[0], // legacy field = first child
+      });
+
+      setUser({
+        ...user,
+        // @ts-ignore
+        childIds: updatedIds,
+        childId: updatedIds[0],
+      });
+
+      setChildForm(emptyChildForm);
+      setShowAddChild(false);
+      Alert.alert('Child added', `${childForm.name.trim()} has been linked to your account.`);
+    } catch (e: any) {
+      setChildError(e?.message ?? 'Could not add child. Please try again.');
+    } finally {
+      setSavingChild(false);
     }
   };
 
@@ -150,7 +205,7 @@ export default function ParentProfileScreen() {
     setAlternateError(null);
     setSavingAlternate(true);
     try {
-      const id = await addAlternatePickup({
+      await addAlternatePickup({
         parentId: user.id,
         studentId: user.childId,
         schoolId: user.schoolId,
@@ -193,11 +248,7 @@ export default function ParentProfileScreen() {
   };
 
   const handleSignOut = async () => {
-    try {
-      await signOut();
-    } finally {
-      reset();
-    }
+    try { await signOut(); } finally { reset(); }
   };
 
   return (
@@ -214,10 +265,11 @@ export default function ParentProfileScreen() {
           <View className="pt-5 pb-2">
             <Text className="text-[26px] font-bold text-text-primary">Profile</Text>
             <Text className="text-[13px] text-text-secondary mt-1">
-              Link your child so the dashboard can track their pickup.
+              Manage your children and pickup settings.
             </Text>
           </View>
 
+          {/* Parent info card */}
           <Card style={{ marginTop: 16, marginBottom: 16 }}>
             <View className="flex-row items-center gap-3">
               <View className="w-12 h-12 rounded-full bg-primary-light justify-center items-center">
@@ -230,11 +282,11 @@ export default function ParentProfileScreen() {
             </View>
           </Card>
 
-          {/* School & child */}
+          {/* ── School code ──────────────────────────────────────────────────── */}
           <View className="bg-card rounded-[18px] p-6 mb-6" style={cardShadow}>
-            <Text className="text-[17px] font-bold text-text-primary mb-1">School & child</Text>
+            <Text className="text-[17px] font-bold text-text-primary mb-1">School</Text>
             <Text className="text-[13px] text-text-secondary mb-4">
-              Enter your school code and your child's grade and name.
+              The school code is shared across all your children.
             </Text>
 
             {error && (
@@ -248,68 +300,143 @@ export default function ParentProfileScreen() {
               <Text className="text-[13px] font-semibold text-text-primary mb-2">School code</Text>
               <TextInput
                 className={`border-[1.5px] border-border rounded-[10px] py-[13px] px-[14px] text-[15px] ${
-                  isEditing ? 'bg-background text-text-primary' : 'bg-divider text-text-secondary'
+                  editingSchool ? 'bg-background text-text-primary' : 'bg-divider text-text-secondary'
                 }`}
                 value={schoolId}
                 onChangeText={setSchoolId}
                 placeholder="MAPLE-RIDGE"
                 placeholderTextColor={Colors.text.light}
                 autoCapitalize="characters"
-                editable={isEditing}
+                editable={editingSchool}
               />
             </View>
-
-            <View className="mb-4">
-              <Text className="text-[13px] font-semibold text-text-primary mb-2">Grade</Text>
-              <TextInput
-                className={`border-[1.5px] border-border rounded-[10px] py-[13px] px-[14px] text-[15px] ${
-                  isEditing ? 'bg-background text-text-primary' : 'bg-divider text-text-secondary'
-                }`}
-                value={grade}
-                onChangeText={setGrade}
-                placeholder="Grade 3"
-                placeholderTextColor={Colors.text.light}
-                autoCapitalize="words"
-                editable={isEditing}
-              />
-            </View>
-
-            {!hasLinkedChild && (
-              <View className="mb-4">
-                <Text className="text-[13px] font-semibold text-text-primary mb-2">Child's name</Text>
-                <TextInput
-                  className={`border-[1.5px] border-border rounded-[10px] py-[13px] px-[14px] text-[15px] ${
-                    isEditing ? 'bg-background text-text-primary' : 'bg-divider text-text-secondary'
-                  }`}
-                  value={childName}
-                  onChangeText={setChildName}
-                  placeholder="Emma Johnson"
-                  placeholderTextColor={Colors.text.light}
-                  autoCapitalize="words"
-                  editable={isEditing}
-                />
-              </View>
-            )}
-
-            {hasLinkedChild && (
-              <View className="flex-row items-center bg-primary-light rounded-[10px] p-3 gap-2">
-                <Ionicons name="information-circle-outline" size={16} color={Colors.primary} />
-                <Text className="flex-1 text-[13px] text-primary">
-                  Child already linked. Updates change school code or grade only.
-                </Text>
-              </View>
-            )}
 
             <Button
-              title={isEditing ? 'Save' : 'Update'}
-              onPress={isEditing ? handleSave : handleEdit}
+              title={editingSchool ? 'Save school code' : 'Update school code'}
+              onPress={editingSchool ? handleSaveSchool : () => setEditingSchool(true)}
               loading={saving}
-              variant={isEditing ? 'primary' : 'outline'}
-              style={{ marginTop: 16 }}
+              variant={editingSchool ? 'primary' : 'outline'}
             />
           </View>
 
-          {/* Alternate pickup persons */}
+          {/* ── Children ─────────────────────────────────────────────────────── */}
+          <View className="bg-card rounded-[18px] p-6 mb-6" style={cardShadow}>
+            <View className="flex-row items-center justify-between mb-1">
+              <Text className="text-[17px] font-bold text-text-primary">Children</Text>
+              {linkedChildren.length > 0 && (
+                <View className="bg-primary-light px-2.5 py-0.5 rounded-full">
+                  <Text className="text-[12px] font-bold text-primary">
+                    {linkedChildren.length}
+                  </Text>
+                </View>
+              )}
+            </View>
+            <Text className="text-[13px] text-text-secondary mb-4">
+              Add each child so their pickup status appears on the dashboard.
+            </Text>
+
+            {loadingChildren ? (
+              <ActivityIndicator color={Colors.primary} />
+            ) : (
+              <>
+                {/* Linked children list */}
+                {linkedChildren.map((child) => (
+                  <View
+                    key={child.id}
+                    className="flex-row items-center gap-3 py-3 border-b border-divider"
+                  >
+                    <View className="w-10 h-10 rounded-full bg-primary-light justify-center items-center">
+                      <Text className="text-[14px] font-bold text-primary">
+                        {child.name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
+                      </Text>
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-[15px] font-semibold text-text-primary">
+                        {child.name}
+                      </Text>
+                      <Text className="text-[13px] text-text-secondary">{child.standard}</Text>
+                    </View>
+                    <View className="flex-row items-center gap-1">
+                      <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
+                      <Text className="text-[12px] text-success font-semibold">Linked</Text>
+                    </View>
+                  </View>
+                ))}
+
+                {/* Add child form */}
+                {showAddChild ? (
+                  <View className="mt-4">
+                    {childError && (
+                      <View className="flex-row items-center bg-danger-light rounded-[10px] p-3 mb-4 gap-2">
+                        <Ionicons name="alert-circle-outline" size={16} color={Colors.danger} />
+                        <Text className="flex-1 text-[13px] text-danger">{childError}</Text>
+                      </View>
+                    )}
+
+                    <View className="mb-3">
+                      <Text className="text-[13px] font-semibold text-text-primary mb-2">
+                        Child's name
+                      </Text>
+                      <TextInput
+                        className="border-[1.5px] border-border rounded-[10px] py-[13px] px-[14px] text-[15px] bg-background text-text-primary"
+                        value={childForm.name}
+                        onChangeText={(v) => setChildForm((f) => ({ ...f, name: v }))}
+                        placeholder="Emma Johnson"
+                        placeholderTextColor={Colors.text.light}
+                        autoCapitalize="words"
+                      />
+                    </View>
+
+                    <View className="mb-4">
+                      <Text className="text-[13px] font-semibold text-text-primary mb-2">
+                        Grade
+                      </Text>
+                      <TextInput
+                        className="border-[1.5px] border-border rounded-[10px] py-[13px] px-[14px] text-[15px] bg-background text-text-primary"
+                        value={childForm.grade}
+                        onChangeText={(v) => setChildForm((f) => ({ ...f, grade: v }))}
+                        placeholder="Grade 3"
+                        placeholderTextColor={Colors.text.light}
+                        autoCapitalize="words"
+                      />
+                    </View>
+
+                    <View className="flex-row gap-3">
+                      <Button
+                        title="Cancel"
+                        variant="outline"
+                        onPress={() => {
+                          setShowAddChild(false);
+                          setChildForm(emptyChildForm);
+                          setChildError(null);
+                        }}
+                        style={{ flex: 1 }}
+                      />
+                      <Button
+                        title="Add child"
+                        variant="primary"
+                        onPress={handleAddChild}
+                        loading={savingChild}
+                        style={{ flex: 1 }}
+                      />
+                    </View>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    className="flex-row items-center justify-center gap-2 mt-4 py-3 border-[1.5px] border-dashed border-border rounded-[10px]"
+                    onPress={() => setShowAddChild(true)}
+                  >
+                    <Ionicons name="person-add-outline" size={18} color={Colors.primary} />
+                    <Text className="text-[14px] font-semibold text-primary">
+                      {linkedChildren.length === 0 ? 'Link your first child' : 'Add another child'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
+          </View>
+
+          {/* ── Alternate pickup persons ─────────────────────────────────────── */}
           <View className="bg-card rounded-[18px] p-6 mb-6" style={cardShadow}>
             <Text className="text-[17px] font-bold text-text-primary mb-1">
               Alternate pickup persons
@@ -359,9 +486,7 @@ export default function ParentProfileScreen() {
                     )}
 
                     <View className="mb-3">
-                      <Text className="text-[13px] font-semibold text-text-primary mb-2">
-                        Full name
-                      </Text>
+                      <Text className="text-[13px] font-semibold text-text-primary mb-2">Full name</Text>
                       <TextInput
                         className="border-[1.5px] border-border rounded-[10px] py-[13px] px-[14px] text-[15px] bg-background text-text-primary"
                         value={form.fullName}
@@ -373,9 +498,7 @@ export default function ParentProfileScreen() {
                     </View>
 
                     <View className="mb-3">
-                      <Text className="text-[13px] font-semibold text-text-primary mb-2">
-                        Email
-                      </Text>
+                      <Text className="text-[13px] font-semibold text-text-primary mb-2">Email</Text>
                       <TextInput
                         className="border-[1.5px] border-border rounded-[10px] py-[13px] px-[14px] text-[15px] bg-background text-text-primary"
                         value={form.email}
@@ -396,10 +519,7 @@ export default function ParentProfileScreen() {
                         className="flex-row items-center gap-3 border-[1.5px] border-border rounded-[10px] p-3"
                       >
                         {form.photoUri ? (
-                          <Image
-                            source={{ uri: form.photoUri }}
-                            className="w-14 h-14 rounded-[8px]"
-                          />
+                          <Image source={{ uri: form.photoUri }} className="w-14 h-14 rounded-[8px]" />
                         ) : (
                           <View className="w-14 h-14 rounded-[8px] bg-divider justify-center items-center">
                             <Ionicons name="camera-outline" size={22} color={Colors.text.light} />
@@ -413,18 +533,14 @@ export default function ParentProfileScreen() {
 
                     <View className="mb-4">
                       <Text className="text-[13px] font-semibold text-text-primary mb-2">
-                        ID photo{' '}
-                        <Text className="text-text-secondary font-normal">(optional)</Text>
+                        ID photo <Text className="text-text-secondary font-normal">(optional)</Text>
                       </Text>
                       <TouchableOpacity
                         onPress={() => pickImage('idPhotoUri')}
                         className="flex-row items-center gap-3 border-[1.5px] border-border rounded-[10px] p-3"
                       >
                         {form.idPhotoUri ? (
-                          <Image
-                            source={{ uri: form.idPhotoUri }}
-                            className="w-14 h-14 rounded-[8px]"
-                          />
+                          <Image source={{ uri: form.idPhotoUri }} className="w-14 h-14 rounded-[8px]" />
                         ) : (
                           <View className="w-14 h-14 rounded-[8px] bg-divider justify-center items-center">
                             <Ionicons name="id-card-outline" size={22} color={Colors.text.light} />
