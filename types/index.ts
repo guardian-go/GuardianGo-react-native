@@ -27,6 +27,7 @@ export interface User {
   schoolId?: string;
   childId?: string;
   standard?: string;
+  photoUrl?: string;
 }
 
 export interface School {

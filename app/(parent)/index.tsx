@@ -6,6 +6,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -180,8 +181,12 @@ export default function ParentDashboard() {
 
         <Card style={{ marginHorizontal: 16, marginBottom: 16 }}>
           <View className="flex-row items-center gap-3">
-            <View className="w-[52px] h-[52px] rounded-full bg-primary-light justify-center items-center">
-              <Text className="text-[18px] font-bold text-primary">{getInitials(student.name)}</Text>
+            <View className="w-[52px] h-[52px] rounded-full bg-primary-light justify-center items-center overflow-hidden">
+              {student.photoUrl ? (
+                <Image source={{ uri: student.photoUrl }} style={{ width: 52, height: 52, borderRadius: 26 }} />
+              ) : (
+                <Text className="text-[18px] font-bold text-primary">{getInitials(student.name)}</Text>
+              )}
             </View>
             <View className="flex-1">
               <Text className="text-base font-bold text-text-primary mb-0.5">{student.name}</Text>
@@ -195,7 +200,13 @@ export default function ParentDashboard() {
 
           {teacher && (
             <View className="mt-3 pt-3 border-t border-divider flex-row items-center gap-2">
-              <Ionicons name="school-outline" size={14} color={Colors.primary} />
+              <View className="w-6 h-6 rounded-full bg-primary-light justify-center items-center overflow-hidden">
+                {teacher.photoUrl ? (
+                  <Image source={{ uri: teacher.photoUrl }} style={{ width: 24, height: 24, borderRadius: 12 }} />
+                ) : (
+                  <Ionicons name="school-outline" size={13} color={Colors.primary} />
+                )}
+              </View>
               <Text className="text-xs text-text-secondary">Grade teacher:</Text>
               <Text className="text-xs font-semibold text-text-primary flex-1">{teacher.name}</Text>
             </View>

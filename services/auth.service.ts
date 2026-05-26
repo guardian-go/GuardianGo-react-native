@@ -16,7 +16,8 @@ import {
   where,
   limit,
 } from 'firebase/firestore';
-import { auth, db } from './firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { auth, db, storage } from './firebase';
 import { User, UserRole } from '@/types';
 import { Config } from '@/constants/config';
 
@@ -69,6 +70,16 @@ export const findGradeTeacher = async (
   if (snap.empty) return null;
   const d = snap.docs[0];
   return { id: d.id, ...d.data() } as User;
+};
+
+export const uploadUserPhoto = async (uid: string, localUri: string): Promise<string> => {
+  const response = await fetch(localUri);
+  const blob = await response.blob();
+  const storageRef = ref(storage, `profiles/${uid}/avatar.jpg`);
+  await uploadBytes(storageRef, blob);
+  const photoUrl = await getDownloadURL(storageRef);
+  await updateDoc(doc(db, Config.firestore.collections.users, uid), { photoUrl });
+  return photoUrl;
 };
 
 export const signOut = async (): Promise<void> => {

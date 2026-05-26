@@ -18,8 +18,8 @@ import { useAuthStore } from '@/store/auth.store';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Colors } from '@/constants/colors';
-import { signOut, updateUserProfile } from '@/services/auth.service';
-import { createStudent } from '@/services/student.service';
+import { signOut, updateUserProfile, uploadUserPhoto } from '@/services/auth.service';
+import { createStudent, getStudent, updateStudentPhoto } from '@/services/student.service';
 import {
   addAlternatePickup,
   getAlternatePickups,
@@ -50,6 +50,13 @@ export default function ParentProfileScreen() {
   const hasSavedProfile = !!user?.schoolId && !!user?.standard && hasLinkedChild;
   const [isEditing, setIsEditing] = useState(!hasSavedProfile);
 
+  // profile photo
+  const [uploadingProfile, setUploadingProfile] = useState(false);
+
+  // child photo
+  const [childPhotoUrl, setChildPhotoUrl] = useState<string | undefined>();
+  const [uploadingChild, setUploadingChild] = useState(false);
+
   // alternate pickup state
   const [alternates, setAlternates] = useState<AlternatePickup[]>([]);
   const [loadingAlternates, setLoadingAlternates] = useState(false);
@@ -57,6 +64,11 @@ export default function ParentProfileScreen() {
   const [form, setForm] = useState(emptyForm);
   const [savingAlternate, setSavingAlternate] = useState(false);
   const [alternateError, setAlternateError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user?.childId) return;
+    getStudent(user.childId).then((s) => setChildPhotoUrl(s?.photoUrl));
+  }, [user?.childId]);
 
   useEffect(() => {
     if (!user) return;
@@ -192,6 +204,45 @@ export default function ParentProfileScreen() {
     );
   };
 
+  const handlePickProfilePhoto = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    if (result.canceled || !user) return;
+    setUploadingProfile(true);
+    try {
+      const photoUrl = await uploadUserPhoto(user.id, result.assets[0].uri);
+      setUser({ ...user, photoUrl });
+    } catch {
+      Alert.alert('Error', 'Could not upload photo. Please try again.');
+    } finally {
+      setUploadingProfile(false);
+    }
+  };
+
+  const handlePickChildPhoto = async () => {
+    if (!user?.childId) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    if (result.canceled) return;
+    setUploadingChild(true);
+    try {
+      const photoUrl = await updateStudentPhoto(user.id, user.childId, result.assets[0].uri);
+      setChildPhotoUrl(photoUrl);
+    } catch {
+      Alert.alert('Error', 'Could not upload photo. Please try again.');
+    } finally {
+      setUploadingChild(false);
+    }
+  };
+
   const handleSignOut = async () => {
     try {
       await signOut();
@@ -220,9 +271,22 @@ export default function ParentProfileScreen() {
 
           <Card style={{ marginTop: 16, marginBottom: 16 }}>
             <View className="flex-row items-center gap-3">
-              <View className="w-12 h-12 rounded-full bg-primary-light justify-center items-center">
-                <Ionicons name="person" size={22} color={Colors.primary} />
-              </View>
+              <TouchableOpacity onPress={handlePickProfilePhoto} disabled={uploadingProfile}>
+                <View className="w-12 h-12 rounded-full bg-primary-light justify-center items-center overflow-hidden">
+                  {uploadingProfile ? (
+                    <ActivityIndicator size="small" color={Colors.primary} />
+                  ) : user?.photoUrl ? (
+                    <Image source={{ uri: user.photoUrl }} className="w-12 h-12 rounded-full" />
+                  ) : (
+                    <Ionicons name="person" size={22} color={Colors.primary} />
+                  )}
+                </View>
+                {!uploadingProfile && (
+                  <View className="absolute bottom-0 right-0 w-4 h-4 rounded-full bg-primary justify-center items-center">
+                    <Ionicons name="camera" size={9} color="#fff" />
+                  </View>
+                )}
+              </TouchableOpacity>
               <View className="flex-1">
                 <Text className="text-base font-bold text-text-primary">{user?.name}</Text>
                 <Text className="text-[13px] text-text-secondary">{user?.email}</Text>
@@ -308,6 +372,42 @@ export default function ParentProfileScreen() {
               style={{ marginTop: 16 }}
             />
           </View>
+
+          {/* Child photo */}
+          {hasLinkedChild && (
+            <View className="bg-card rounded-[18px] p-6 mb-6" style={cardShadow}>
+              <Text className="text-[17px] font-bold text-text-primary mb-1">Child's photo</Text>
+              <Text className="text-[13px] text-text-secondary mb-4">
+                Helps staff confirm identity at pickup.
+              </Text>
+              <TouchableOpacity
+                className="items-center self-start"
+                onPress={handlePickChildPhoto}
+                disabled={uploadingChild}
+              >
+                <View className="w-20 h-20 rounded-full bg-primary-light justify-center items-center overflow-hidden">
+                  {uploadingChild ? (
+                    <ActivityIndicator size="large" color={Colors.primary} />
+                  ) : childPhotoUrl ? (
+                    <Image source={{ uri: childPhotoUrl }} className="w-20 h-20 rounded-full" />
+                  ) : (
+                    <Ionicons name="person" size={32} color={Colors.primary} />
+                  )}
+                </View>
+                {!uploadingChild && (
+                  <View
+                    style={{ position: 'absolute', bottom: 0, right: 0 }}
+                    className="w-6 h-6 rounded-full bg-primary justify-center items-center"
+                  >
+                    <Ionicons name="camera" size={12} color="#fff" />
+                  </View>
+                )}
+                <Text className="text-[13px] text-primary mt-2 font-semibold">
+                  {childPhotoUrl ? 'Change photo' : 'Add photo'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Alternate pickup persons */}
           <View className="bg-card rounded-[18px] p-6 mb-6" style={cardShadow}>
