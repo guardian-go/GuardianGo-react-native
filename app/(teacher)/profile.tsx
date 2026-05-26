@@ -8,14 +8,17 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '@/store/auth.store';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Colors } from '@/constants/colors';
-import { signOut, updateUserProfile } from '@/services/auth.service';
+import { signOut, updateUserProfile, uploadUserPhoto, findGradeTeacher } from '@/services/auth.service';
 
 const cardShadow = {
   shadowColor: '#000',
@@ -32,6 +35,7 @@ export default function TeacherProfileScreen() {
   const [grade, setGrade] = useState(user?.standard ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadingProfile, setUploadingProfile] = useState(false);
 
   const hasSavedProfile = !!user?.schoolId && !!user?.standard;
   const [isEditing, setIsEditing] = useState(!hasSavedProfile);
@@ -52,6 +56,11 @@ export default function TeacherProfileScreen() {
     setError(null);
     setSaving(true);
     try {
+      const existing = await findGradeTeacher(schoolId.trim(), grade.trim());
+      if (existing && existing.id !== user.id) {
+        setError(`Cannot enroll — ${existing.name} is already the teacher for ${grade.trim()} at this school.`);
+        return;
+      }
       await updateUserProfile(user.id, {
         schoolId: schoolId.trim(),
         standard: grade.trim(),
@@ -72,6 +81,25 @@ export default function TeacherProfileScreen() {
       setError(e?.message ?? 'Could not save profile. Please try again.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handlePickProfilePhoto = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    if (result.canceled || !user) return;
+    setUploadingProfile(true);
+    try {
+      const photoUrl = await uploadUserPhoto(user.id, result.assets[0].uri);
+      setUser({ ...user, photoUrl });
+    } catch {
+      Alert.alert('Error', 'Could not upload photo. Please try again.');
+    } finally {
+      setUploadingProfile(false);
     }
   };
 
@@ -103,9 +131,22 @@ export default function TeacherProfileScreen() {
 
           <Card style={{ marginTop: 16, marginBottom: 16 }}>
             <View className="flex-row items-center gap-3">
-              <View className="w-12 h-12 rounded-full bg-primary-light justify-center items-center">
-                <Ionicons name="school" size={22} color={Colors.primary} />
-              </View>
+              <TouchableOpacity onPress={handlePickProfilePhoto} disabled={uploadingProfile}>
+                <View className="w-12 h-12 rounded-full bg-primary-light justify-center items-center overflow-hidden">
+                  {uploadingProfile ? (
+                    <ActivityIndicator size="small" color={Colors.primary} />
+                  ) : user?.photoUrl ? (
+                    <Image source={{ uri: user.photoUrl }} className="w-12 h-12 rounded-full" />
+                  ) : (
+                    <Ionicons name="school" size={22} color={Colors.primary} />
+                  )}
+                </View>
+                {!uploadingProfile && (
+                  <View className="absolute bottom-0 right-0 w-4 h-4 rounded-full bg-primary justify-center items-center">
+                    <Ionicons name="camera" size={9} color="#fff" />
+                  </View>
+                )}
+              </TouchableOpacity>
               <View className="flex-1">
                 <Text className="text-base font-bold text-text-primary">{user?.name}</Text>
                 <Text className="text-[13px] text-text-secondary">{user?.email}</Text>

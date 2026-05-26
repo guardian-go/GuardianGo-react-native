@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Student } from '@/types';
 import { Badge } from '@/components/ui/Badge';
@@ -27,7 +27,11 @@ export function StudentCard({ student, onRelease }: StudentCardProps) {
   return (
     <View style={styles.card}>
       <View style={styles.avatar}>
-        <Text style={styles.initials}>{getInitials(student.name)}</Text>
+        {student.photoUrl ? (
+          <Image source={{ uri: student.photoUrl }} style={styles.avatarImage} />
+        ) : (
+          <Text style={styles.initials}>{getInitials(student.name)}</Text>
+        )}
       </View>
 
       <View style={styles.info}>
@@ -91,6 +95,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
   },
   initials: {
     fontSize: 16,

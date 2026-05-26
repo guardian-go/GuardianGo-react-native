@@ -28,6 +28,7 @@ export interface User {
   childId?: string;      // kept for backward compat (first child)
   childIds?: string[];   // NEW: all children
   standard?: string;
+  photoUrl?: string;
 }
 
 export interface School {

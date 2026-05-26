@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   onSnapshot,
   query,
@@ -10,9 +11,30 @@ import {
   serverTimestamp,
   writeBatch,
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from './firebase';
 import { Student, PickupStatus } from '@/types';
 import { Config } from '@/constants/config';
+
+export const getStudent = async (studentId: string): Promise<Student | null> => {
+  const snap = await getDoc(doc(db, Config.firestore.collections.students, studentId));
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() } as Student;
+};
+
+export const updateStudentPhoto = async (
+  parentId: string,
+  studentId: string,
+  localUri: string
+): Promise<string> => {
+  const response = await fetch(localUri);
+  const blob = await response.blob();
+  const storageRef = ref(storage, `students/${parentId}/${studentId}.jpg`);
+  await uploadBytes(storageRef, blob);
+  const photoUrl = await getDownloadURL(storageRef);
+  await updateDoc(doc(db, Config.firestore.collections.students, studentId), { photoUrl });
+  return photoUrl;
+};
 
 export const subscribeToStudents = (
   standard: string,
