@@ -171,6 +171,7 @@ export default function ParentProfileScreen() {
         standard: childForm.grade.trim(),
         parentId: user.id,
         schoolId: resolvedSchool,
+        parentName: user.name,
       });
 
       // Merge into childIds array, keep childId for legacy compat

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,9 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Image,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -18,23 +21,21 @@ import { ArrivalButton } from '@/components/parent/ArrivalButton';
 import { StatusTracker } from '@/components/ui/StatusTracker';
 import { Card } from '@/components/ui/Card';
 import { Colors } from '@/constants/colors';
-import { PickupStatus, Student, User } from '@/types';
-import { formatTime } from '@/utils/formatTime';
+import { AlternatePickup, PickupStatus, Student, User } from '@/types';
+import { formatTime, getInitials } from '@/utils/formatTime';
 import { updateStudentStatus } from '@/services/student.service';
 import {
   createPickupRecord,
   confirmPickupRecord,
 } from '@/services/record.service';
+import { getAlternatePickups } from '@/services/alternatePickup.service';
+import { ChildSummaryCard } from '@/components/parent/ChildSummaryCard';
 
 function getGreeting(): string {
   const h = new Date().getHours();
   if (h < 12) return 'Good morning';
   if (h < 17) return 'Good afternoon';
   return 'Good evening';
-}
-
-function getInitials(name: string): string {
-  return name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase();
 }
 
 const STATUS_MESSAGES: Record<PickupStatus, (childName: string) => { title: string; body: string }> = {
@@ -56,8 +57,18 @@ const STATUS_MESSAGES: Record<PickupStatus, (childName: string) => { title: stri
   }),
 };
 
-// ── Single child card with its own arrival button ─────────────────────────────
-function ChildCard({
+function PersonAvatar({ photoUrl, name, size }: { photoUrl: string | null; name: string; size: number }) {
+  const r = size / 2;
+  return photoUrl ? (
+    <Image source={{ uri: photoUrl }} style={{ width: size, height: size, borderRadius: r }} className="bg-divider" />
+  ) : (
+    <View style={{ width: size, height: size, borderRadius: r }} className="bg-primary-light justify-center items-center">
+      <Text style={{ fontSize: Math.round(size * 0.35) }} className="font-bold text-primary">{getInitials(name)}</Text>
+    </View>
+  );
+}
+
+function ChildDetail({
   student,
   user,
 }: {
@@ -71,7 +82,21 @@ function ChildCard({
   );
 
   const [acting, setActing] = useState(false);
+  const [pickupPersons, setPickupPersons] = useState<AlternatePickup[]>([]);
+  const [selectedPickupId, setSelectedPickupId] = useState<string | 'self'>('self');
+  const [showPicker, setShowPicker] = useState(false);
   const status: PickupStatus = student.status ?? 'in_school';
+
+  useEffect(() => {
+    getAlternatePickups(user.id)
+      .then((all) => setPickupPersons(all.filter((p) => p.studentId === student.id)));
+  }, [user.id, student.id]);
+
+  const selectedPerson = useMemo(() => {
+    if (selectedPickupId === 'self') return { name: user.name, photoUrl: user.photoUrl ?? null, badge: 'You' };
+    const alt = pickupPersons.find((p) => p.id === selectedPickupId);
+    return alt ? { name: alt.fullName, photoUrl: alt.photoUrl, badge: 'Alternate' } : { name: user.name, photoUrl: user.photoUrl ?? null, badge: 'You' };
+  }, [selectedPickupId, pickupPersons, user.name, user.photoUrl]);
 
   const arrivedAt = useMemo(
     () =>
@@ -116,37 +141,83 @@ function ChildCard({
   const msg = STATUS_MESSAGES[status](student.name);
 
   return (
-    <View className="mb-6">
+    <View>
       {/* Status message */}
-      <View className="px-5 pb-3">
+      <View className="px-5 pt-4 pb-3">
         <Text className="text-[17px] font-bold text-text-primary mb-1">{msg.title}</Text>
         <Text className="text-sm text-text-secondary leading-[21px]">{msg.body}</Text>
       </View>
 
-      {/* Child info card */}
-      <Card style={{ marginHorizontal: 16, marginBottom: 12 }}>
-        <View className="flex-row items-center gap-3">
-          <View className="w-[52px] h-[52px] rounded-full bg-primary-light justify-center items-center">
-            <Text className="text-[18px] font-bold text-primary">{getInitials(student.name)}</Text>
+      {/* Teacher info row */}
+      {teacher && (
+        <View className="flex-row items-center gap-2 px-5 pb-3">
+          <Ionicons name="school-outline" size={14} color={Colors.primary} />
+          <Text className="text-[13px] text-text-secondary">Teacher:</Text>
+          <Text className="text-[13px] font-semibold text-text-primary">{teacher.name}</Text>
+        </View>
+      )}
+
+      {/* Who is picking today — tappable selector */}
+      <TouchableOpacity onPress={() => setShowPicker(true)} activeOpacity={0.75}>
+        <Card style={{ marginHorizontal: 16, marginBottom: 12 }}>
+          <View className="flex-row items-center gap-2 mb-3">
+            <Ionicons name="people-outline" size={14} color={Colors.text.secondary} />
+            <Text className="text-sm font-semibold text-text-secondary flex-1">Who is picking today?</Text>
+            <Ionicons name="chevron-down" size={14} color={Colors.text.light} />
           </View>
-          <View className="flex-1">
-            <Text className="text-base font-bold text-text-primary mb-0.5">{student.name}</Text>
-            <Text className="text-[13px] text-text-secondary mb-[3px]">{student.standard}</Text>
-            <View className="flex-row items-center gap-[3px]">
-              <Ionicons name="business-outline" size={12} color={Colors.text.secondary} />
-              <Text className="text-xs text-text-secondary">{student.schoolId}</Text>
+          <View className="flex-row items-center gap-3">
+            <PersonAvatar photoUrl={selectedPerson.photoUrl} name={selectedPerson.name} size={36} />
+            <Text className="flex-1 text-[14px] font-medium text-text-primary">{selectedPerson.name}</Text>
+            <View className={`px-2 py-[3px] rounded-full ${selectedPickupId === 'self' ? 'bg-primary-light' : 'bg-divider'}`}>
+              <Text className={`text-[11px] font-semibold ${selectedPickupId === 'self' ? 'text-primary' : 'text-text-secondary'}`}>
+                {selectedPerson.badge}
+              </Text>
             </View>
           </View>
-        </View>
+        </Card>
+      </TouchableOpacity>
 
-        {teacher && (
-          <View className="mt-3 pt-3 border-t border-divider flex-row items-center gap-2">
-            <Ionicons name="school-outline" size={14} color={Colors.primary} />
-            <Text className="text-xs text-text-secondary">Grade teacher:</Text>
-            <Text className="text-xs font-semibold text-text-primary flex-1">{teacher.name}</Text>
-          </View>
-        )}
-      </Card>
+      {/* Picker modal */}
+      <Modal visible={showPicker} transparent animationType="slide" onRequestClose={() => setShowPicker(false)}>
+        <Pressable className="flex-1 bg-black/40" onPress={() => setShowPicker(false)} />
+        <View className="bg-card rounded-t-[24px] px-5 pt-5 pb-8">
+          <View className="w-10 h-1 rounded-full bg-divider self-center mb-4" />
+          <Text className="text-[17px] font-bold text-text-primary mb-4">Who is picking today?</Text>
+
+          {/* Parent (self) option */}
+          <TouchableOpacity
+            className="flex-row items-center gap-3 py-3 border-b border-divider"
+            onPress={() => { setSelectedPickupId('self'); setShowPicker(false); }}
+          >
+            <PersonAvatar photoUrl={user.photoUrl ?? null} name={user.name} size={40} />
+            <View className="flex-1">
+              <Text className="text-[15px] font-semibold text-text-primary">{user.name}</Text>
+              <Text className="text-[12px] text-text-secondary">You · Primary</Text>
+            </View>
+            {selectedPickupId === 'self' && (
+              <Ionicons name="checkmark-circle" size={22} color={Colors.primary} />
+            )}
+          </TouchableOpacity>
+
+          {/* Alternate options */}
+          {pickupPersons.map((p) => (
+            <TouchableOpacity
+              key={p.id}
+              className="flex-row items-center gap-3 py-3 border-b border-divider"
+              onPress={() => { setSelectedPickupId(p.id); setShowPicker(false); }}
+            >
+              <Image source={{ uri: p.photoUrl }} className="w-10 h-10 rounded-full bg-divider" />
+              <View className="flex-1">
+                <Text className="text-[15px] font-semibold text-text-primary">{p.fullName}</Text>
+                <Text className="text-[12px] text-text-secondary">{p.email} · Alternate</Text>
+              </View>
+              {selectedPickupId === p.id && (
+                <Ionicons name="checkmark-circle" size={22} color={Colors.primary} />
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+      </Modal>
 
       {/* Status tracker */}
       {status !== 'in_school' && (
@@ -171,6 +242,7 @@ function ChildCard({
         dismissalActive={dismissalActive}
         dismissalTime={cycle?.dismissalTime ?? null}
       />
+      <View className="h-8" />
     </View>
   );
 }
@@ -188,6 +260,8 @@ export default function ParentDashboard() {
   }, [user?.childIds, user?.childId]);
 
   const { children, isLoading } = useChildrenStudents(childIds);
+  const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
+  const selectedChild = children.find((c) => c.id === selectedChildId) ?? null;
 
   const firstName = user?.name?.split(' ')[0] ?? 'Parent';
   const profileIncomplete = childIds.length === 0;
@@ -250,35 +324,68 @@ export default function ParentDashboard() {
           </TouchableOpacity>
         </View>
 
-        {/* Children count badge */}
-        {children.length > 1 && (
-          <View className="flex-row items-center gap-2 px-5 mb-2">
-            <Ionicons name="people-outline" size={15} color={Colors.primary} />
-            <Text className="text-[13px] text-primary font-semibold">
-              {children.length} children linked
-            </Text>
-          </View>
-        )}
+        {/* Section label */}
+        <Text className="text-[13px] font-semibold text-text-secondary px-5 mb-3">
+          {children.length === 1 ? 'Your child' : `Your children (${children.length})`}
+        </Text>
 
-        {/* Divider between children */}
-        {children.map((child, idx) => (
-          <View key={child.id}>
-            {/* Separator between multiple children */}
-            {idx > 0 && (
-              <View className="mx-5 mb-5 border-t border-divider" />
-            )}
-            <ChildCard student={child} user={user!} />
-          </View>
+        {/* Children summary cards */}
+        {children.map((child) => (
+          <ChildSummaryCard
+            key={child.id}
+            student={child}
+            onPress={() => setSelectedChildId(child.id)}
+          />
         ))}
 
         {/* PIPEDA footer */}
-        <View className="flex-row items-start px-5 pt-2 gap-[6px]">
+        <View className="flex-row items-start px-5 pt-4 gap-[6px]">
           <Ionicons name="shield-checkmark-outline" size={14} color={Colors.text.light} />
           <Text className="flex-1 text-[11px] text-text-light leading-4">
             All pickup records are stored securely in compliance with PIPEDA
           </Text>
         </View>
       </ScrollView>
+
+      {/* Child detail modal */}
+      <Modal
+        visible={!!selectedChild}
+        animationType="slide"
+        onRequestClose={() => setSelectedChildId(null)}
+      >
+        <SafeAreaView className="flex-1 bg-background">
+          {/* Header */}
+          <View className="flex-row items-center px-5 py-4 border-b border-divider">
+            <View className="flex-1">
+              <Text className="text-[20px] font-bold text-text-primary">
+                {selectedChild?.name}
+              </Text>
+              <View className="flex-row items-center gap-2 mt-0.5">
+                <Text className="text-[13px] text-text-secondary">
+                  {selectedChild?.standard}
+                </Text>
+                <Text className="text-text-light">·</Text>
+                <Text className="text-[13px] text-text-secondary">
+                  {selectedChild?.schoolId}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              onPress={() => setSelectedChildId(null)}
+              className="p-2 rounded-full bg-divider"
+            >
+              <Ionicons name="close" size={20} color={Colors.text.secondary} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Scrollable detail content */}
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {selectedChild && (
+              <ChildDetail student={selectedChild} user={user!} />
+            )}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }

@@ -14,6 +14,7 @@ export interface Student {
   photoUrl?: string;
   standard: string;
   parentId: string;
+  parentName?: string;
   schoolId: string;
   status: PickupStatus;
   statusUpdatedAt: Date;

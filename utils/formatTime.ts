@@ -1,3 +1,6 @@
+export const getInitials = (name: string): string =>
+  name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase();
+
 export const formatTime = (date: Date): string => {
   return date.toLocaleTimeString('en-CA', {
     hour: '2-digit',

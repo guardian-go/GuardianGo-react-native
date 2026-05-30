@@ -75,6 +75,7 @@ export const createStudent = async (data: {
   standard: string;
   parentId: string;
   schoolId: string;
+  parentName?: string;
 }): Promise<string> => {
   const ref = await addDoc(collection(db, Config.firestore.collections.students), {
     ...data,

@@ -84,13 +84,13 @@ export const releasePickupRecord = async (
   teacherId: string
 ): Promise<void> => {
   const found = await findActiveRecord(studentId, todayKey(), 'open');
-  if (!found) throw new Error('No active pickup record to release');
+  if (!found) return;
   await updateDoc(found.ref, { releasedAt: serverTimestamp(), teacherId });
 };
 
 export const confirmPickupRecord = async (studentId: string): Promise<void> => {
   const found = await findActiveRecord(studentId, todayKey(), 'released');
-  if (!found) throw new Error('No released pickup record to confirm');
+  if (!found) return;
   await updateDoc(found.ref, { confirmedAt: serverTimestamp() });
 };
 
