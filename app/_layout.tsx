@@ -49,16 +49,23 @@ export default function RootLayout() {
   useEffect(() => {
     if (isLoading) return;
 
-    const inAuthGroup = segments[0] === '(auth)';
+    const segment = segments[0];
+    const inAuthGroup = segment === '(auth)';
+    const inTeacherGroup = segment === '(teacher)';
+    const inParentGroup = segment === '(parent)';
+    const inPaywallGroup = segment === '(paywall)';
 
-    if (!isAuthenticated && !inAuthGroup) {
-      router.replace('/(auth)/login');
-    } else if (isAuthenticated && inAuthGroup) {
-      if (role === 'teacher' || role === 'admin') {
-        router.replace('/(teacher)');
-      } else if (role === 'parent') {
-        router.replace('/(parent)');
-      }
+    if (!isAuthenticated) {
+      if (!inAuthGroup) router.replace('/(auth)/login');
+      return;
+    }
+
+    if (inPaywallGroup) return;
+
+    if (role === 'teacher' || role === 'admin') {
+      if (!inTeacherGroup) router.replace('/(teacher)');
+    } else if (role === 'parent') {
+      if (!inParentGroup) router.replace('/(parent)');
     }
   }, [isLoading, isAuthenticated, role, segments]);
 

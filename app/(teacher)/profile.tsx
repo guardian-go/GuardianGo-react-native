@@ -58,7 +58,7 @@ export default function TeacherProfileScreen() {
     try {
       const existing = await findGradeTeacher(schoolId.trim(), grade.trim());
       if (existing && existing.id !== user.id) {
-        setError(`Cannot enroll — ${existing.name} is already the teacher for ${grade.trim()} at this school.`);
+        setError(`Cannot enroll — Someone is already the teacher for ${grade.trim()}there`);
         return;
       }
       await updateUserProfile(user.id, {

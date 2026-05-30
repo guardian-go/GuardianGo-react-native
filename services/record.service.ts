@@ -59,11 +59,15 @@ const findActiveRecord = async (
     collection(db, Config.firestore.collections.pickupRecords),
     where('studentId', '==', studentId),
     where('date', '==', date),
-    orderBy('arrivedAt', 'desc'),
-    limit(5)
+    limit(10)
   );
   const snap = await getDocs(q);
-  for (const d of snap.docs) {
+  const sorted = snap.docs.slice().sort((a, b) => {
+    const aMs = (a.data().arrivedAt as Timestamp)?.toMillis?.() ?? 0;
+    const bMs = (b.data().arrivedAt as Timestamp)?.toMillis?.() ?? 0;
+    return bMs - aMs;
+  });
+  for (const d of sorted) {
     const data = d.data();
     if (filter === 'open' && !data.releasedAt) {
       return { ref: d.ref, data: fromDoc(d.id, data) };
