@@ -22,7 +22,7 @@ interface DismissalControlModalProps {
 }
 
 const PRESETS: Array<{ label: string; hour: number; minute: number }> = [
-  { label: '2:30 PM', hour: 14, minute: 30 },
+  { label: '2:45 PM', hour: 14, minute: 45 },
   { label: '3:00 PM', hour: 15, minute: 0 },
   { label: '3:15 PM', hour: 15, minute: 15 },
   { label: '3:30 PM', hour: 15, minute: 30 },
@@ -135,7 +135,13 @@ export function DismissalControlModal({
           <View style={styles.toggleRow}>
             <TouchableOpacity
               style={[styles.toggleChip, nextActive && styles.toggleChipActive]}
-              onPress={() => setNextActive(true)}
+              onPress={() => {
+                setNextActive(true);
+                const now = new Date();
+                setHour12(((now.getHours() + 11) % 12) + 1);
+                setMinute(now.getMinutes());
+                setPeriod(now.getHours() >= 12 ? 'PM' : 'AM');
+              }}
             >
               <View
                 style={[
@@ -193,7 +199,7 @@ export function DismissalControlModal({
                 style={styles.timeInput}
                 keyboardType="number-pad"
                 maxLength={2}
-                value={pad(minute)}
+                value={String(minute || '')}
                 onChangeText={handleMinuteChange}
                 placeholder="00"
                 placeholderTextColor={Colors.text.light}

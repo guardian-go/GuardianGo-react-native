@@ -15,11 +15,13 @@ import { useStudents } from '@/hooks/useStudent';
 import { useDismissalCycle } from '@/hooks/useDismissalCycle';
 import { StatsRow } from '@/components/teacher/StatsRow';
 import { DismissalControlModal } from '@/components/teacher/DismissalControlModal';
+import { SendMessageModal } from '@/components/teacher/SendMessageModal';
 import { Card } from '@/components/ui/Card';
 import { Colors } from '@/constants/colors';
 import { PickupStatus, Student } from '@/types';
 import { formatTime, formatRelativeTime } from '@/utils/formatTime';
 import { setDismissalCycle } from '@/services/dismissal.service';
+import { sendBroadcastMessage } from '@/services/message.service';
 
 const shadowMd = { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 };
 const shadowSm = { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 1 };
@@ -68,6 +70,18 @@ export default function TeacherOverviewScreen() {
     : null;
 
   const [controlOpen, setControlOpen] = useState(false);
+  const [messageModalOpen, setMessageModalOpen] = useState(false);
+
+  const handleSendMessage = async (title: string, body: string) => {
+    await sendBroadcastMessage({
+      schoolId: user!.schoolId!,
+      standard: user!.standard!,
+      teacherId: user!.id,
+      teacherName: user!.name,
+      title,
+      body,
+    });
+  };
 
   const handleSaveCycle = async (input: { active: boolean; dismissalTime: Date }) => {
     if (!user?.schoolId || !user?.standard) return;
@@ -195,9 +209,15 @@ export default function TeacherOverviewScreen() {
           onSubmit={handleSaveCycle}
         />
 
+        <SendMessageModal
+          visible={messageModalOpen}
+          onClose={() => setMessageModalOpen(false)}
+          onSend={handleSendMessage}
+        />
+
         <View className="px-4 mb-5">
           <Text className="text-[17px] font-bold text-text-primary mb-3">Quick Actions</Text>
-          <View className="flex-row gap-3">
+          <View className="flex-row gap-3 mb-3">
             <TouchableOpacity
               className="flex-1 bg-card rounded-[14px] p-[14px] items-center"
               style={shadowSm}
@@ -218,6 +238,8 @@ export default function TeacherOverviewScreen() {
               </View>
               <Text className="text-xs font-medium text-text-primary text-center">Activity Log</Text>
             </TouchableOpacity>
+          </View>
+          <View className="flex-row gap-3">
             <TouchableOpacity
               className="flex-1 bg-card rounded-[14px] p-[14px] items-center"
               style={shadowSm}
@@ -227,6 +249,16 @@ export default function TeacherOverviewScreen() {
                 <Ionicons name="settings-outline" size={22} color={Colors.success} />
               </View>
               <Text className="text-xs font-medium text-text-primary text-center">Profile</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              className="flex-1 bg-card rounded-[14px] p-[14px] items-center"
+              style={shadowSm}
+              onPress={() => setMessageModalOpen(true)}
+            >
+              <View className="w-11 h-11 rounded-full justify-center items-center mb-2 bg-primary-light">
+                <Ionicons name="megaphone-outline" size={22} color={Colors.primary} />
+              </View>
+              <Text className="text-xs font-medium text-text-primary text-center">Send Message</Text>
             </TouchableOpacity>
           </View>
         </View>

@@ -23,6 +23,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '@/services/firebase';
+import { getStudent } from '@/services/student.service';
 import { Colors } from '@/constants/colors';
 
 // ── Types -
@@ -154,40 +155,59 @@ export default function ParentMessagesScreen() {
   const [messages, setMessages] = useState<BroadcastMessage[]>([]);
   const [notifications, setNotifications] = useState<InAppNotif[]>([]);
   const [loading, setLoading] = useState(true);
+  const [standard, setStandard] = useState<string | undefined>(user?.standard);
+
+  // Resolve standard — prefer user doc, fall back to first child doc for legacy accounts
+  useEffect(() => {
+    if (user?.standard) { setStandard(user.standard); return; }
+    if (user?.childId) {
+      getStudent(user.childId).then((child) => setStandard(child?.standard ?? undefined));
+    }
+  }, [user?.standard, user?.childId]);
 
   // Subscribe to broadcast messages
   useEffect(() => {
-    if (!user?.schoolId || !user?.standard) {
+    console.log('[Messages] user schoolId:', user?.schoolId, 'standard:', standard);
+    if (!user?.schoolId || !standard) {
+      console.log('[Messages] missing profile — skipping query');
       setLoading(false);
       return;
     }
     const q = query(
       collection(db, 'broadcastMessages'),
       where('schoolId', '==', user.schoolId),
-      where('standard', '==', user.standard),
+      where('standard', '==', standard),
       orderBy('createdAt', 'desc')
     );
-    const unsub = onSnapshot(q, (snap) => {
-      setMessages(
-        snap.docs.map((d) => {
-          const data = d.data();
-          return {
-            id: d.id,
-            schoolId: data.schoolId,
-            standard: data.standard,
-            teacherId: data.teacherId,
-            teacherName: data.teacherName,
-            title: data.title,
-            body: data.body,
-            createdAt: toDate(data.createdAt),
-            readBy: data.readBy ?? [],
-          };
-        })
-      );
-      setLoading(false);
-    });
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        console.log('[Messages] snapshot docs:', snap.docs.length);
+        setMessages(
+          snap.docs.map((d) => {
+            const data = d.data();
+            return {
+              id: d.id,
+              schoolId: data.schoolId,
+              standard: data.standard,
+              teacherId: data.teacherId,
+              teacherName: data.teacherName,
+              title: data.title,
+              body: data.body,
+              createdAt: toDate(data.createdAt),
+              readBy: data.readBy ?? [],
+            };
+          })
+        );
+        setLoading(false);
+      },
+      (err) => {
+        console.error('[Messages] query error:', err.code, err.message);
+        setLoading(false);
+      },
+    );
     return unsub;
-  }, [user?.schoolId, user?.standard]);
+  }, [user?.schoolId, standard]);
 
   // Subscribe to unread in-app notifications (late alerts etc.)
   useEffect(() => {

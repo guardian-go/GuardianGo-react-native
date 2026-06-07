@@ -177,11 +177,13 @@ export default function ParentProfileScreen() {
       // Merge into childIds array, keep childId for legacy compat
       const existingIds = user.childIds ?? (user.childId ? [user.childId] : []);
       const updatedIds = [...existingIds, newChildId];
+      const isFirstChild = existingIds.length === 0;
 
       await updateUserProfile(user.id, {
         // @ts-ignore – childIds not in base User type yet
         childIds: updatedIds,
         childId: updatedIds[0], // legacy field = first child
+        ...(isFirstChild && { standard: childForm.grade.trim() }),
       });
 
       setUser({
@@ -189,6 +191,7 @@ export default function ParentProfileScreen() {
         // @ts-ignore
         childIds: updatedIds,
         childId: updatedIds[0],
+        ...(isFirstChild && { standard: childForm.grade.trim() }),
       });
 
       setChildForm(emptyChildForm);
@@ -459,10 +462,11 @@ export default function ParentProfileScreen() {
                       <TextInput
                         className="border-[1.5px] border-border rounded-[10px] py-[13px] px-[14px] text-[15px] bg-background text-text-primary"
                         value={childForm.grade}
+                        maxLength={6}
                         onChangeText={(v) => setChildForm((f) => ({ ...f, grade: v }))}
-                        placeholder="Grade 3"
+                        placeholder="3"
                         placeholderTextColor={Colors.text.light}
-                        autoCapitalize="words"
+                        autoCapitalize="characters"
                       />
                     </View>
 
