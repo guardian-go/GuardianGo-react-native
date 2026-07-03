@@ -87,7 +87,7 @@ function AlertBanner({
   );
 }
 
-// ── Broadcast message card ─
+
 function MessageCard({
   msg,
   parentId,
@@ -95,9 +95,10 @@ function MessageCard({
   msg: BroadcastMessage;
   parentId: string;
 }) {
+  // Check whether this parent has already viewed the message
   const isRead = msg.readBy.includes(parentId);
 
-  // Auto-mark as read when rendered
+  // Automatically mark the message as read when it appears on screen
   useEffect(() => {
     if (!isRead) {
       updateDoc(doc(db, 'broadcastMessages', msg.id), {
@@ -238,7 +239,7 @@ export default function ParentMessagesScreen() {
   const dismissNotif = async (id: string) => {
     await updateDoc(doc(db, 'notifications', id), { read: true });
   };
-
+// Count how many messages this parent has not read yet
   const unreadMessages = messages.filter(
     (m) => !m.readBy.includes(user?.id ?? '')
   ).length;

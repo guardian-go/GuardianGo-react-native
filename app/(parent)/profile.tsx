@@ -28,6 +28,7 @@ import {
 import { AlternatePickup, Student } from '@/types';
 import { subscribeToStudent } from '@/services/student.service';
 
+
 const cardShadow = {
   shadowColor: '#000',
   shadowOffset: { width: 0, height: 2 },
@@ -459,15 +460,42 @@ export default function ParentProfileScreen() {
                       <Text className="text-[13px] font-semibold text-text-primary mb-2">
                         Grade
                       </Text>
-                      <TextInput
-                        className="border-[1.5px] border-border rounded-[10px] py-[13px] px-[14px] text-[15px] bg-background text-text-primary"
-                        value={childForm.grade}
-                        maxLength={6}
-                        onChangeText={(v) => setChildForm((f) => ({ ...f, grade: v }))}
-                        placeholder="3"
-                        placeholderTextColor={Colors.text.light}
-                        autoCapitalize="characters"
-                      />
+                      {Platform.OS === 'web' ? (
+                        <select
+                          value={childForm.grade}
+                          onChange={(e) =>
+                            setChildForm((f) => ({ ...f, grade: (e.target as HTMLSelectElement).value }))
+                          }
+                          style={{
+                            width: '100%',
+                            border: '1.5px solid #D1D5DB',
+                            borderRadius: 10,
+                            padding: 13,
+                            fontSize: 15,
+                            backgroundColor: '#fff',
+                          }}
+                        >
+                          <option value="">Select grade</option>
+                          <option value="JK">JK</option>
+                          <option value="SK">SK</option>
+                          <option value="1">Grade 1</option>
+                          <option value="2">Grade 2</option>
+                          <option value="3">Grade 3</option>
+                          <option value="4">Grade 4</option>
+                          <option value="5">Grade 5</option>
+                          <option value="6">Grade 6</option>
+                          <option value="7">Grade 7</option>
+                          <option value="8">Grade 8</option>
+                        </select>
+                      ) : (
+                        <TextInput
+                          className="border-[1.5px] border-border rounded-[10px] py-[13px] px-[14px] text-[15px] bg-background text-text-primary"
+                          value={childForm.grade}
+                          onChangeText={(v) => setChildForm((f) => ({ ...f, grade: v }))}
+                          placeholder="Grade"
+                          placeholderTextColor={Colors.text.light}
+                        />
+                      )}
                     </View>
 
                     <View className="flex-row gap-3">
