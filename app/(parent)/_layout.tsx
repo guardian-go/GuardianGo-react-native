@@ -1,7 +1,7 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/colors';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '@/store/auth.store';
 import {
   collection,
@@ -11,6 +11,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '@/services/firebase';
+import { useChildrenStudents } from '@/hooks/useStudent';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -19,8 +20,21 @@ function useUnreadCount(): number {
   const { user } = useAuthStore();
   const [count, setCount] = useState(0);
 
+  // A parent may have multiple children in different classes — count unread
+  // messages across every one of their children's classes, not just one.
+  const childIds = useMemo(() => {
+    if (user?.childIds && user.childIds.length > 0) return user.childIds;
+    if (user?.childId) return [user.childId];
+    return [];
+  }, [user?.childIds, user?.childId]);
+  const { children } = useChildrenStudents(childIds);
+  const standards = useMemo(
+    () => Array.from(new Set(children.map((c) => c.standard).filter(Boolean))),
+    [children]
+  );
+
   useEffect(() => {
-    if (!user?.id || !user?.schoolId || !user?.standard) return;
+    if (!user?.id || !user?.schoolId || standards.length === 0) return;
 
     let msgUnread = 0;
     let notifUnread = 0;
@@ -28,7 +42,7 @@ function useUnreadCount(): number {
     const msgQ = query(
       collection(db, 'broadcastMessages'),
       where('schoolId', '==', user.schoolId),
-      where('standard', '==', user.standard)
+      where('standard', 'in', standards)
     );
     const unsubMsg = onSnapshot(msgQ, (snap) => {
       msgUnread = snap.docs.filter(
@@ -51,7 +65,7 @@ function useUnreadCount(): number {
       unsubMsg();
       unsubNotif();
     };
-  }, [user?.id, user?.schoolId, user?.standard]);
+  }, [user?.id, user?.schoolId, standards.join(',')]);
 
   return count;
 }

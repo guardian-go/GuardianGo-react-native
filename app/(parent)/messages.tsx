@@ -1,6 +1,6 @@
 
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -23,7 +23,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '@/services/firebase';
-import { getStudent } from '@/services/student.service';
+import { useChildrenStudents } from '@/hooks/useStudent';
 import { Colors } from '@/constants/colors';
 
 // ── Types -
@@ -156,34 +156,36 @@ export default function ParentMessagesScreen() {
   const [messages, setMessages] = useState<BroadcastMessage[]>([]);
   const [notifications, setNotifications] = useState<InAppNotif[]>([]);
   const [loading, setLoading] = useState(true);
-  const [standard, setStandard] = useState<string | undefined>(user?.standard);
 
-  // Resolve standard — prefer user doc, fall back to first child doc for legacy accounts
-  useEffect(() => {
-    if (user?.standard) { setStandard(user.standard); return; }
-    if (user?.childId) {
-      getStudent(user.childId).then((child) => setStandard(child?.standard ?? undefined));
-    }
-  }, [user?.standard, user?.childId]);
+  // A parent may have multiple children in different classes — resolve the
+  // distinct set of grades/standards across ALL of their children (not just
+  // the first one) so messages from every one of their children's teachers show up.
+  const childIds = useMemo(() => {
+    if (user?.childIds && user.childIds.length > 0) return user.childIds;
+    if (user?.childId) return [user.childId];
+    return [];
+  }, [user?.childIds, user?.childId]);
+  const { children } = useChildrenStudents(childIds);
+  const standards = useMemo(
+    () => Array.from(new Set(children.map((c) => c.standard).filter(Boolean))),
+    [children]
+  );
 
-  // Subscribe to broadcast messages
+  // Subscribe to broadcast messages across all of the parent's children's classes
   useEffect(() => {
-    console.log('[Messages] user schoolId:', user?.schoolId, 'standard:', standard);
-    if (!user?.schoolId || !standard) {
-      console.log('[Messages] missing profile — skipping query');
+    if (!user?.schoolId || standards.length === 0) {
       setLoading(false);
       return;
     }
     const q = query(
       collection(db, 'broadcastMessages'),
       where('schoolId', '==', user.schoolId),
-      where('standard', '==', standard),
+      where('standard', 'in', standards),
       orderBy('createdAt', 'desc')
     );
     const unsub = onSnapshot(
       q,
       (snap) => {
-        console.log('[Messages] snapshot docs:', snap.docs.length);
         setMessages(
           snap.docs.map((d) => {
             const data = d.data();
@@ -208,7 +210,7 @@ export default function ParentMessagesScreen() {
       },
     );
     return unsub;
-  }, [user?.schoolId, standard]);
+  }, [user?.schoolId, standards.join(',')]);
 
   // Subscribe to unread in-app notifications (late alerts etc.)
   useEffect(() => {
