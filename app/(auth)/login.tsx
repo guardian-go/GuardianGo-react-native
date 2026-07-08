@@ -7,6 +7,7 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   Platform,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -18,12 +19,14 @@ import { Colors } from '@/constants/colors';
 import { UserRole } from '@/types';
 
 const cardShadow = {
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.08,
-  shadowRadius: 8,
-  elevation: 3,
+  shadowColor: '#0F172A',
+  shadowOffset: { width: 0, height: 10 },
+  shadowOpacity: 0.1,
+  shadowRadius: 24,
+  elevation: 6,
 };
+
+type Field = 'email' | 'password' | null;
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -31,6 +34,7 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [focused, setFocused] = useState<Field>(null);
 
   const { setUser, setRole } = useAuthStore();
   const router = useRouter();
@@ -53,8 +57,11 @@ export default function LoginScreen() {
     }
   };
 
+  const fieldBorder = (field: Field) =>
+    focused === field ? Colors.primary : Colors.border;
+
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <SafeAreaView className="flex-1 bg-white">
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1"
@@ -64,24 +71,28 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Branding */}
-          <View className="items-center pt-[52px] pb-8">
-            <View className="w-20 h-20 rounded-full bg-primary-light justify-center items-center mb-4">
-              <Ionicons name="shield-checkmark" size={40} color={Colors.primary} />
+          {/* Branding — white screen bg so the JPEG's white background blends in */}
+          <View className="items-center pt-[40px] pb-8">
+            <Image
+              source={require('../../assets/logo.jpeg')}
+              style={{ width: 180, height: 180, marginBottom: 4 }}
+              resizeMode="contain"
+            />
+            <View className="flex-row items-center gap-[6px] bg-primary-light px-3 py-[6px] rounded-full">
+              <Ionicons name="shield-checkmark" size={13} color={Colors.primary} />
+              <Text className="text-[12px] font-semibold text-primary">
+                School Pickup Management
+              </Text>
             </View>
-            <Text className="text-[30px] font-extrabold text-text-primary tracking-tight mb-1.5">
-              Guardian Go
-            </Text>
-            <Text className="text-[15px] text-text-secondary">School Pickup Management</Text>
           </View>
 
           {/* Form Card */}
-          <View className="bg-card rounded-[18px] p-6 mb-6" style={cardShadow}>
-            <Text className="text-[22px] font-bold text-text-primary mb-1">Welcome back</Text>
-            <Text className="text-sm text-text-secondary mb-5">Sign in to your account</Text>
+          <View className="bg-card rounded-3xl p-6 mb-6 border border-border" style={cardShadow}>
+            <Text className="text-[23px] font-bold text-text-primary mb-1">Welcome back</Text>
+            <Text className="text-sm text-text-secondary mb-6">Sign in to your account</Text>
 
             {error && (
-              <View className="flex-row items-center bg-danger-light rounded-[10px] p-3 mb-4 gap-2">
+              <View className="flex-row items-center bg-danger-light rounded-xl p-3 mb-4 gap-2">
                 <Ionicons name="alert-circle-outline" size={16} color={Colors.danger} />
                 <Text className="flex-1 text-[13px] text-danger">{error}</Text>
               </View>
@@ -89,12 +100,25 @@ export default function LoginScreen() {
 
             <View className="mb-4">
               <Text className="text-[13px] font-semibold text-text-primary mb-2">Email address</Text>
-              <View className="flex-row items-center border-[1.5px] border-border rounded-[10px] bg-background">
-                <Ionicons name="mail-outline" size={18} color={Colors.text.light} style={{ marginLeft: 12 }} />
+              <View
+                className="flex-row items-center border-[1.5px] rounded-xl"
+                style={{
+                  borderColor: fieldBorder('email'),
+                  backgroundColor: focused === 'email' ? '#fff' : Colors.background,
+                }}
+              >
+                <Ionicons
+                  name="mail-outline"
+                  size={18}
+                  color={focused === 'email' ? Colors.primary : Colors.text.light}
+                  style={{ marginLeft: 14 }}
+                />
                 <TextInput
-                  className="flex-1 py-[13px] px-[10px] text-[15px] text-text-primary"
+                  className="flex-1 py-[14px] px-[10px] text-[15px] text-text-primary"
                   value={email}
                   onChangeText={setEmail}
+                  onFocus={() => setFocused('email')}
+                  onBlur={() => setFocused(null)}
                   placeholder="you@school.ca"
                   placeholderTextColor={Colors.text.light}
                   keyboardType="email-address"
@@ -106,12 +130,25 @@ export default function LoginScreen() {
 
             <View className="mb-4">
               <Text className="text-[13px] font-semibold text-text-primary mb-2">Password</Text>
-              <View className="flex-row items-center border-[1.5px] border-border rounded-[10px] bg-background">
-                <Ionicons name="lock-closed-outline" size={18} color={Colors.text.light} style={{ marginLeft: 12 }} />
+              <View
+                className="flex-row items-center border-[1.5px] rounded-xl"
+                style={{
+                  borderColor: fieldBorder('password'),
+                  backgroundColor: focused === 'password' ? '#fff' : Colors.background,
+                }}
+              >
+                <Ionicons
+                  name="lock-closed-outline"
+                  size={18}
+                  color={focused === 'password' ? Colors.primary : Colors.text.light}
+                  style={{ marginLeft: 14 }}
+                />
                 <TextInput
-                  className="flex-1 py-[13px] px-[10px] pr-1 text-[15px] text-text-primary"
+                  className="flex-1 py-[14px] px-[10px] pr-1 text-[15px] text-text-primary"
                   value={password}
                   onChangeText={setPassword}
+                  onFocus={() => setFocused('password')}
+                  onBlur={() => setFocused(null)}
                   placeholder="••••••••"
                   placeholderTextColor={Colors.text.light}
                   secureTextEntry={!showPassword}
