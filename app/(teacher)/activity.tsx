@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -12,85 +12,23 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/auth.store';
 import { useActivityFeed } from '@/hooks/useActivityFeed';
 import { Colors } from '@/constants/colors';
-import { PickupRecord } from '@/types';
-import { formatTime, formatDate } from '@/utils/formatTime';
+import { PickupRecordCard } from '@/components/ui/PickupRecordCard';
 
-type EventKind = 'arrived' | 'released' | 'confirmed';
-
-interface FeedEvent {
-  id: string;
-  studentName: string;
-  parentName: string;
-  kind: EventKind;
-  timestamp: Date;
-}
-
-const EVENT_CONFIG: Record<EventKind, { label: string; color: string; icon: React.ComponentProps<typeof Ionicons>['name'] }> = {
-  arrived: { label: 'Parent arrived', color: Colors.warning, icon: 'car' },
-  released: { label: 'Released by teacher', color: Colors.primary, icon: 'arrow-forward-circle' },
-  confirmed: { label: 'Pickup confirmed', color: Colors.success, icon: 'checkmark-circle' },
-};
-
-const cardShadow = { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 1 };
-
-function recordToEvents(record: PickupRecord): FeedEvent[] {
-  const events: FeedEvent[] = [
-    { id: `${record.id}-arrived`, studentName: record.studentName, parentName: record.parentName, kind: 'arrived', timestamp: record.arrivedAt },
-  ];
-  if (record.releasedAt) {
-    events.push({ id: `${record.id}-released`, studentName: record.studentName, parentName: record.parentName, kind: 'released', timestamp: record.releasedAt });
-  }
-  if (record.confirmedAt) {
-    events.push({ id: `${record.id}-confirmed`, studentName: record.studentName, parentName: record.parentName, kind: 'confirmed', timestamp: record.confirmedAt });
-  }
-  return events;
-}
-
-function EventItem({ event, isLast }: { event: FeedEvent; isLast: boolean }) {
-  const cfg = EVENT_CONFIG[event.kind];
-
-  return (
-    <View className="flex-row gap-3">
-      <View className="items-center w-[14px]">
-        <View className="w-3 h-3 rounded-full mt-4 shrink-0" style={{ backgroundColor: cfg.color }} />
-        {!isLast && <View className="w-0.5 flex-1 bg-border mt-1" />}
-      </View>
-      <View
-        className={`flex-1 bg-card rounded-xl p-[14px] ${isLast ? 'mb-0' : 'mb-[10px]'}`}
-        style={cardShadow}
-      >
-        <View className="flex-row items-center mb-2 gap-[6px]">
-          <View
-            className="w-[26px] h-[26px] rounded-[13px] justify-center items-center"
-            style={{ backgroundColor: cfg.color + '18' }}
-          >
-            <Ionicons name={cfg.icon} size={16} color={cfg.color} />
-          </View>
-          <Text className="flex-1 text-[13px] font-semibold" style={{ color: cfg.color }}>
-            {cfg.label}
-          </Text>
-          <Text className="text-xs text-text-light">{formatTime(event.timestamp)}</Text>
-        </View>
-        <Text className="text-[15px] font-semibold text-text-primary mb-0.5">{event.studentName}</Text>
-        <Text className="text-xs text-text-secondary">{event.parentName}</Text>
-      </View>
-    </View>
-  );
-}
+const RANGE_OPTIONS: Array<{ label: string; days: number }> = [
+  { label: 'Today', days: 1 },
+  { label: '2 Days', days: 2 },
+  { label: '3 Days', days: 3 },
+  { label: '5 Days', days: 5 },
+];
 
 export default function ActivityScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const { records, isLoading } = useActivityFeed(user?.schoolId, user?.standard);
+  const [days, setDays] = useState(1);
+  const { records, isLoading } = useActivityFeed(user?.schoolId, user?.standard, days);
 
   const profileIncomplete = !user?.schoolId || !user?.standard;
-  const today = formatDate(new Date());
-
-  const events = useMemo(() => {
-    return records
-      .flatMap(recordToEvents)
-      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-  }, [records]);
+  const rangeLabel = RANGE_OPTIONS.find((r) => r.days === days)?.label ?? 'Today';
 
   if (profileIncomplete) {
     return (
@@ -118,12 +56,35 @@ export default function ActivityScreen() {
         <Text className="text-[26px] font-bold text-text-primary">Activity Log</Text>
         <View className="flex-row items-center bg-primary-light px-[10px] py-[5px] rounded-full gap-[5px]">
           <Ionicons name="calendar-outline" size={13} color={Colors.primary} />
-          <Text className="text-xs font-semibold text-primary">{today}</Text>
+          <Text className="text-xs font-semibold text-primary">{rangeLabel}</Text>
         </View>
       </View>
 
+      <View className="flex-row gap-2 px-5 pb-4">
+        {RANGE_OPTIONS.map((opt) => {
+          const isSelected = opt.days === days;
+          return (
+            <TouchableOpacity
+              key={opt.label}
+              onPress={() => setDays(opt.days)}
+              className={`px-3 py-[7px] rounded-full border ${
+                isSelected ? 'bg-primary border-primary' : 'bg-card border-border'
+              }`}
+            >
+              <Text
+                className={`text-xs font-semibold ${
+                  isSelected ? 'text-white' : 'text-text-secondary'
+                }`}
+              >
+                {opt.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
       <View className="px-5 pb-4">
-        <Text className="text-[13px] text-text-secondary">{events.length} events today</Text>
+        <Text className="text-[13px] text-text-secondary">{records.length} pickups in this range</Text>
       </View>
 
       {isLoading ? (
@@ -132,17 +93,15 @@ export default function ActivityScreen() {
         </View>
       ) : (
         <FlatList
-          data={events}
+          data={records}
           keyExtractor={(item) => item.id}
-          renderItem={({ item, index }) => (
-            <EventItem event={item} isLast={index === events.length - 1} />
-          )}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}
+          renderItem={({ item }) => <PickupRecordCard record={item} showParentName />}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View className="items-center pt-[40px] gap-3">
               <Ionicons name="time-outline" size={44} color={Colors.text.light} />
-              <Text className="text-[15px] text-text-secondary">No events yet today</Text>
+              <Text className="text-[15px] text-text-secondary">No activity in this range</Text>
             </View>
           }
         />
