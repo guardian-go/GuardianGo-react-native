@@ -99,4 +99,5 @@ export interface DismissalCycle {
   dismissalTime?: Date;
   activatedAt?: Date;
   activatedBy?: string;
+  resetAt?: Date;
 }
