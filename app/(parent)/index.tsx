@@ -76,7 +76,7 @@ function ChildDetail({
   user: User;
 }) {
   const { teacher } = useGradeTeacher(student.schoolId, student.standard);
-  const { cycle, isActive: dismissalActive } = useDismissalCycle(
+  const { cycle, isLive: dismissalActive } = useDismissalCycle(
     student.schoolId,
     student.standard,
   );

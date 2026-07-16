@@ -1,6 +1,8 @@
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendEmailVerification,
+  sendPasswordResetEmail,
   signOut as firebaseSignOut,
   onAuthStateChanged,
   User as FirebaseUser,
@@ -44,7 +46,21 @@ export const registerUser = async (
   const { user } = await createUserWithEmailAndPassword(auth, email, password);
   const profile: User = { id: user.uid, name, email, role };
   await setDoc(doc(db, Config.firestore.collections.users, user.uid), profile);
+  try {
+    await sendEmailVerification(user);
+  } catch (e) {
+    console.log('sendEmailVerification failed', e);
+  }
   return profile;
+};
+
+export const resendVerificationEmail = async (): Promise<void> => {
+  if (!auth.currentUser) throw new Error('Not signed in');
+  await sendEmailVerification(auth.currentUser);
+};
+
+export const resetPassword = async (email: string): Promise<void> => {
+  await sendPasswordResetEmail(auth, email);
 };
 
 export const updateUserProfile = async (

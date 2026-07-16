@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { signIn } from '@/services/auth.service';
 import { useAuthStore } from '@/store/auth.store';
 import { Button } from '@/components/ui/Button';
+import { ForgotPasswordModal } from '@/components/ui/ForgotPasswordModal';
 import { Colors } from '@/constants/colors';
 import { UserRole } from '@/types';
 
@@ -35,6 +36,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [focused, setFocused] = useState<Field>(null);
+  const [forgotVisible, setForgotVisible] = useState(false);
 
   const { setUser, setRole } = useAuthStore();
   const router = useRouter();
@@ -173,7 +175,7 @@ export default function LoginScreen() {
               style={{ marginTop: 8, marginBottom: 12 }}
             />
 
-            <TouchableOpacity className="items-center py-1">
+            <TouchableOpacity className="items-center py-1" onPress={() => setForgotVisible(true)}>
               <Text className="text-[13px] text-primary font-medium">Forgot password?</Text>
             </TouchableOpacity>
           </View>
@@ -187,6 +189,7 @@ export default function LoginScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      <ForgotPasswordModal visible={forgotVisible} onClose={() => setForgotVisible(false)} />
     </SafeAreaView>
   );
 }
