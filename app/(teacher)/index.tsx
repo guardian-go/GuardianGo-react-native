@@ -54,7 +54,7 @@ export default function TeacherOverviewScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
   const { students, isLoading } = useStudents();
-  const { cycle, isActive: dismissalActive } = useDismissalCycle(
+  const { cycle, isActive: dismissalActive, hasActivatedToday } = useDismissalCycle(
     user?.schoolId,
     user?.standard,
   );
@@ -73,14 +73,20 @@ export default function TeacherOverviewScreen() {
   const [messageModalOpen, setMessageModalOpen] = useState(false);
 
   const handleSendMessage = async (title: string, body: string) => {
-    await sendBroadcastMessage({
-      schoolId: user!.schoolId!,
-      standard: user!.standard!,
-      teacherId: user!.id,
-      teacherName: user!.name,
-      title,
-      body,
-    });
+    try {
+      await sendBroadcastMessage({
+        schoolId: user!.schoolId!,
+        standard: user!.standard!,
+        teacherId: user!.id,
+        teacherName: user!.name,
+        title,
+        body,
+      });
+      Alert.alert('Message sent', 'Your message has been sent to all parents in your class.');
+    } catch (e: any) {
+      Alert.alert('Could not send message', e?.message ?? 'Please try again.');
+      throw e;
+    }
   };
 
   const handleSaveCycle = async (input: { active: boolean; dismissalTime: Date }) => {
@@ -187,7 +193,9 @@ export default function TeacherOverviewScreen() {
                     : activatedAtLabel
                       ? `Started at ${activatedAtLabel}`
                       : 'Tap to set dismissal time'
-                  : 'Tap to start today\'s cycle'}
+                  : hasActivatedToday
+                    ? 'Already run today — locked until tomorrow'
+                    : 'Tap to start today\'s cycle'}
               </Text>
             </View>
           </View>
@@ -205,6 +213,7 @@ export default function TeacherOverviewScreen() {
           visible={controlOpen}
           active={dismissalActive}
           dismissalTime={cycle?.dismissalTime ?? null}
+          hasActivatedToday={hasActivatedToday}
           onClose={() => setControlOpen(false)}
           onSubmit={handleSaveCycle}
         />

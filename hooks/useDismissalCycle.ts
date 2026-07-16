@@ -10,12 +10,14 @@ export const useDismissalCycle = (
   const [cycle, setCycle] = useState<DismissalCycle | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(!!schoolId && !!standard);
   const [todayKey, setTodayKey] = useState<string>(getTodayKey());
+  const [now, setNow] = useState<Date>(new Date());
 
   useEffect(() => {
     const tick = setInterval(() => {
+      setNow(new Date());
       const next = getTodayKey();
       setTodayKey((prev) => (prev === next ? prev : next));
-    }, 60_000);
+    }, 30_000);
     return () => clearInterval(tick);
   }, []);
 
@@ -33,9 +35,16 @@ export const useDismissalCycle = (
     return unsubscribe;
   }, [schoolId, standard, todayKey]);
 
+  const isActive = !!cycle?.active && cycle.date === todayKey;
+  const dismissalTimeReached = !cycle?.dismissalTime || now >= cycle.dismissalTime;
+
   return {
     cycle,
-    isActive: !!cycle?.active && cycle.date === todayKey,
+    isActive,
+    // Gate for parent-facing actions: cycle must be active AND the scheduled
+    // dismissal time (if any) must have already passed.
+    isLive: isActive && dismissalTimeReached,
+    hasActivatedToday: !!cycle?.resetAt && cycle.date === todayKey,
     isLoading,
   };
 };

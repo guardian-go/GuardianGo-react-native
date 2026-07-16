@@ -17,15 +17,14 @@ interface DismissalControlModalProps {
   visible: boolean;
   active: boolean;
   dismissalTime?: Date | null;
+  hasActivatedToday?: boolean;
   onClose: () => void;
   onSubmit: (input: { active: boolean; dismissalTime: Date }) => Promise<void> | void;
 }
 
 const PRESETS: Array<{ label: string; hour: number; minute: number }> = [
-  { label: '2:45 PM', hour: 14, minute: 45 },
   { label: '3:00 PM', hour: 15, minute: 0 },
-  { label: '3:15 PM', hour: 15, minute: 15 },
-  { label: '3:30 PM', hour: 15, minute: 30 },
+  { label: '3:15 PM', hour: 15, minute: 15 }
 ];
 
 const clamp = (n: number, min: number, max: number) =>
@@ -43,6 +42,7 @@ export function DismissalControlModal({
   visible,
   active,
   dismissalTime,
+  hasActivatedToday = false,
   onClose,
   onSubmit,
 }: DismissalControlModalProps) {
@@ -67,6 +67,9 @@ export function DismissalControlModal({
     const h = hour12 % 12;
     return period === 'PM' ? h + 12 : h;
   }, [hour12, period]);
+
+  const canGoActive = !hasActivatedToday;
+  const canSubmit = canGoActive || !nextActive;
 
   const handleHourChange = (text: string) => {
     const digits = text.replace(/\D/g, '').slice(0, 2);
@@ -129,12 +132,19 @@ export function DismissalControlModal({
           </View>
 
           <Text style={styles.caption}>
-            Tap a preset or enter the time you'd like dismissal to run today.
+            {hasActivatedToday
+              ? "Dismissal has already been started today, so it can only run once. You can still pause it, but it can't be reactivated until tomorrow."
+              : "Tap a preset or enter the time you'd like dismissal to run today."}
           </Text>
 
           <View style={styles.toggleRow}>
             <TouchableOpacity
-              style={[styles.toggleChip, nextActive && styles.toggleChipActive]}
+              disabled={!canGoActive}
+              style={[
+                styles.toggleChip,
+                nextActive && styles.toggleChipActive,
+                !canGoActive && styles.toggleChipDisabled,
+              ]}
               onPress={() => {
                 setNextActive(true);
                 const now = new Date();
@@ -157,6 +167,9 @@ export function DismissalControlModal({
               >
                 Active
               </Text>
+              {!canGoActive && (
+                <Ionicons name="lock-closed" size={12} color={Colors.text.light} />
+              )}
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.toggleChip, !nextActive && styles.toggleChipActive]}
@@ -179,7 +192,7 @@ export function DismissalControlModal({
             </TouchableOpacity>
           </View>
 
-          <View style={styles.timeRow}>
+          <View style={[styles.timeRow, !canGoActive && styles.disabledSection]}>
             <View style={styles.timeBox}>
               <Text style={styles.timeLabel}>Hour</Text>
               <TextInput
@@ -190,6 +203,7 @@ export function DismissalControlModal({
                 onChangeText={handleHourChange}
                 placeholder="3"
                 placeholderTextColor={Colors.text.light}
+                editable={canGoActive}
               />
             </View>
             <Text style={styles.timeSep}>:</Text>
@@ -203,12 +217,14 @@ export function DismissalControlModal({
                 onChangeText={handleMinuteChange}
                 placeholder="00"
                 placeholderTextColor={Colors.text.light}
+                editable={canGoActive}
               />
             </View>
             <View style={styles.periodGroup}>
               {(['AM', 'PM'] as const).map((p) => (
                 <TouchableOpacity
                   key={p}
+                  disabled={!canGoActive}
                   style={[styles.periodChip, period === p && styles.periodChipActive]}
                   onPress={() => setPeriod(p)}
                 >
@@ -225,12 +241,13 @@ export function DismissalControlModal({
             </View>
           </View>
 
-          <View style={styles.presetRow}>
+          <View style={[styles.presetRow, !canGoActive && styles.disabledSection]}>
             {PRESETS.map((p) => {
               const isSelected = hour24 === p.hour && minute === p.minute;
               return (
                 <TouchableOpacity
                   key={p.label}
+                  disabled={!canGoActive}
                   style={[styles.preset, isSelected && styles.presetActive]}
                   onPress={() => applyPreset(p)}
                 >
@@ -251,6 +268,7 @@ export function DismissalControlModal({
             title={nextActive ? 'Save & Activate' : 'Save Paused'}
             onPress={handleSubmit}
             loading={submitting}
+            disabled={!canSubmit}
             variant={nextActive ? 'success' : 'primary'}
             style={{ marginTop: 18 }}
           />
@@ -307,6 +325,12 @@ const styles = StyleSheet.create({
   toggleChipActive: {
     borderColor: Colors.primary,
     backgroundColor: Colors.primary + '14',
+  },
+  toggleChipDisabled: {
+    opacity: 0.5,
+  },
+  disabledSection: {
+    opacity: 0.5,
   },
   dot: {
     width: 8,
