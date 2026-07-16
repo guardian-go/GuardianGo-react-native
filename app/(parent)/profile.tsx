@@ -19,14 +19,13 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Colors } from '@/constants/colors';
 import { signOut, updateUserProfile, uploadUserPhoto } from '@/services/auth.service';
-import { createStudent, getStudent, updateStudentPhoto } from '@/services/student.service';
+import { createStudent, updateStudentPhoto, subscribeToStudent } from '@/services/student.service';
 import {
   addAlternatePickup,
   getAlternatePickups,
   deleteAlternatePickup,
 } from '@/services/alternatePickup.service';
 import { AlternatePickup, Student } from '@/types';
-import { subscribeToStudent } from '@/services/student.service';
 
 
 const cardShadow = {
@@ -63,8 +62,7 @@ export default function ParentProfileScreen() {
   const [uploadingProfile, setUploadingProfile] = useState(false);
 
   // child photo
-  const [childPhotoUrl, setChildPhotoUrl] = useState<string | undefined>();
-  const [uploadingChild, setUploadingChild] = useState(false);
+  const [uploadingChildId, setUploadingChildId] = useState<string | null>(null);
 
   // alternate pickup state
   const [alternates, setAlternates] = useState<AlternatePickup[]>([]);
@@ -104,12 +102,6 @@ export default function ParentProfileScreen() {
 
     return () => unsubs.forEach((u) => u());
   }, [user?.id]);
-
-  // Load alternates
-  useEffect(() => {
-    if (!user?.childId) return;
-    getStudent(user.childId).then((s) => setChildPhotoUrl(s?.photoUrl));
-  }, [user?.childId]);
 
   useEffect(() => {
     if (!user) return;
@@ -283,8 +275,8 @@ export default function ParentProfileScreen() {
     }
   };
 
-  const handlePickChildPhoto = async () => {
-    if (!user?.childId) return;
+  const handlePickChildPhoto = async (childId: string) => {
+    if (!user) return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
@@ -292,14 +284,13 @@ export default function ParentProfileScreen() {
       quality: 0.7,
     });
     if (result.canceled) return;
-    setUploadingChild(true);
+    setUploadingChildId(childId);
     try {
-      const photoUrl = await updateStudentPhoto(user.id, user.childId, result.assets[0].uri);
-      setChildPhotoUrl(photoUrl);
+      await updateStudentPhoto(user.id, childId, result.assets[0].uri);
     } catch {
       Alert.alert('Error', 'Could not upload photo. Please try again.');
     } finally {
-      setUploadingChild(false);
+      setUploadingChildId(null);
     }
   };
 
@@ -414,11 +405,27 @@ export default function ParentProfileScreen() {
                     key={child.id}
                     className="flex-row items-center gap-3 py-3 border-b border-divider"
                   >
-                    <View className="w-10 h-10 rounded-full bg-primary-light justify-center items-center">
-                      <Text className="text-[14px] font-bold text-primary">
-                        {child.name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
-                      </Text>
-                    </View>
+                    <TouchableOpacity
+                      onPress={() => handlePickChildPhoto(child.id)}
+                      disabled={uploadingChildId === child.id}
+                    >
+                      <View className="w-10 h-10 rounded-full bg-primary-light justify-center items-center overflow-hidden">
+                        {uploadingChildId === child.id ? (
+                          <ActivityIndicator size="small" color={Colors.primary} />
+                        ) : child.photoUrl ? (
+                          <Image source={{ uri: child.photoUrl }} className="w-10 h-10 rounded-full" />
+                        ) : (
+                          <Text className="text-[14px] font-bold text-primary">
+                            {child.name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
+                          </Text>
+                        )}
+                      </View>
+                      {uploadingChildId !== child.id && (
+                        <View className="absolute bottom-0 right-0 w-4 h-4 rounded-full bg-primary justify-center items-center">
+                          <Ionicons name="camera" size={9} color="#fff" />
+                        </View>
+                      )}
+                    </TouchableOpacity>
                     <View className="flex-1">
                       <Text className="text-[15px] font-semibold text-text-primary">
                         {child.name}
